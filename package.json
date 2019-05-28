@@ -1,0 +1,31 @@
+{
+    "name": "fogo",
+    "version": "0.0.1",
+    "description": "Yet another node.js framework, but simpler.",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cezarsmpio/fogo.git"
+    },
+    "keywords": [
+        "nodejs",
+        "framework",
+        "web",
+        "framework",
+        "http",
+        "net",
+        "rest",
+        "node",
+        "library",
+        "restful"
+    ],
+    "author": "Cezar Sampaio",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/cezarsmpio/fogo/issues"
+    },
+    "homepage": "https://github.com/cezarsmpio/fogo#readme"
+}
