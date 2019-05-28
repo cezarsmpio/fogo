@@ -1,4 +1,4 @@
-# fogo
+# fogo 🔥
 
 > Yet another node.js framework, but simpler.
 
