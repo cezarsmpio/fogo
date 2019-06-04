@@ -4,7 +4,7 @@
     "description": "Yet another node.js framework, but simpler.",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "jest"
     },
     "repository": {
         "type": "git",
@@ -27,5 +27,13 @@
     "bugs": {
         "url": "https://github.com/cezarsmpio/fogo/issues"
     },
-    "homepage": "https://github.com/cezarsmpio/fogo#readme"
+    "homepage": "https://github.com/cezarsmpio/fogo#readme",
+    "dependencies": {
+        "path-match": "^1.2.4"
+    },
+    "devDependencies": {
+        "@types/node": "^12.0.4",
+        "jest": "^24.8.0",
+        "supertest": "^4.0.2"
+    }
 }
