@@ -2,8 +2,6 @@
 
 > Yet another node.js framework, but simpler.
 
-[![https://nodei.co/npm/fogo.png?downloads=true&downloadRank=true&stars=true](https://nodei.co/npm/fogo.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/fogo)
-
 [![Build Status](https://travis-ci.com/cezarsmpio/fogo.svg?branch=master)](https://travis-ci.com/cezarsmpio/fogo)
 [![npm download](https://img.shields.io/npm/dm/fogo.svg)](https://www.npmjs.com/package/fogo)
 [![GitHub issues](https://img.shields.io/github/issues/cezarsmpio/fogo.svg)](https://github.com/cezarsmpio/fogo/issues)
