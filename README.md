@@ -2,6 +2,15 @@
 
 > Yet another node.js framework, but simpler.
 
+[![Build Status](https://travis-ci.com/cezarsmpio/fogo.svg?branch=master)](https://travis-ci.com/cezarsmpio/fogo)
+[![npm download](https://img.shields.io/npm/dm/fogo.svg)](https://www.npmjs.com/package/fogo)
+[![GitHub issues](https://img.shields.io/github/issues/cezarsmpio/fogo.svg)](https://github.com/cezarsmpio/fogo/issues)
+[![minified + gzip](https://badgen.net/bundlephobia/minzip/fogo)](https://bundlephobia.com/result?p=fogo)
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
+[![npm version](https://img.shields.io/npm/v/fogo.svg)](https://www.npmjs.com/package/fogo)
+[![GitHub contributors](https://img.shields.io/github/contributors/cezarsmpio/fogo.svg)](https://GitHub.com/cezarsmpio/fogo/graphs/contributors/)
+[![GitHub stars](https://img.shields.io/github/stars/cezarsmpio/fogo.svg?style=social&label=Star)](https://github.com/cezarsmpio/fogo)
+
 ### Install
 
 ```
