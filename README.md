@@ -8,28 +8,29 @@
 npm install fogo --save
 ```
 
+`fogo` supports only node 8+ because of `async`/`await`.
+
 ### Why? Why? Why?
 
 `fogo`, means `fire` in Portuguese 🤷‍♀️. It is basically a wrapper for the [node.js http module](https://nodejs.org/api/http.html#http_class_http_server).
 
 Sometimes `Express`, which is a good framework, is too much for your needs or too heavy because of its tons of dependencies, especially if you do microservices or have a lot of CI/CD going on.
 
-Only use `fogo` if you want to have direct access to the `http` module provided by node.js but without crying when dealing with routes.
+Only use `fogo` if you want to use the `http` module provided by node.js but without dealing with routes.
 
-`fogo` does not support middlewares. You don't need it.
+`fogo` does not support middlewares. You _really_ don't need it.
 
 What `fogo` is good for:
 
 -   microservices
--   simple and small json apis
--   mvps
+-   restful/json apis
 
 What `fogo` is not good for:
 
 -   applications using template engines
--   huge applications
+-   monolithic applications
 
-An alternative to `fogo` is [`micro`](https://github.com/zeit/micro) in case you need more support from the community.
+An alternative to `fogo` is [`micro`](https://github.com/zeit/micro).
 
 ### Usage
 
@@ -46,14 +47,13 @@ const handlers = {
         get: async (req, res, url, params) => {
             try {
                 await validateRequest(req, schema); // Why middlewares? :)
-                const { id } = params;
-                const product = getProductFromDB(id);
+                const product = await getProductFromDB(params.id);
 
                 res.writeHead(200);
                 res.end(JSON.stringify(product));
             } catch (err) {
                 res.writeHead(404);
-                res.end('Ops, this product does not exist.');
+                res.end('Oops, this product does not exist.');
             }
         }
     },
@@ -64,13 +64,11 @@ const handlers = {
                 const body = await json(req);
                 const customer = await createCustomer(body.customer);
 
+                res.setHeader('x-foo', 'bar');
                 res.writeHead(201);
-                res.setHeader('X-Foo', 'bar');
-
                 res.end('Customer created');
             } catch (err) {
                 res.writeHead(403);
-
                 res.end(
                     JSON.stringify({
                         statusCode: 403,
@@ -79,25 +77,91 @@ const handlers = {
                 );
             }
         }
-    },
-    '/*': (req, res) => {
-        res.writeHead(404);
-        res.end('Not found, sorry ¯\_(ツ)_/¯');
     }
 };
 
-const server = fogo.createServer(handlers, requestListener);
+const notFoundHandler = (req, res) => {
+    res.writeHead(404);
+    res.end('Not found, sorry!');
+};
 
-// server is http.Server class with a helper, easy peasy!
+const server = fogo.createServer(handlers, notFoundHandler);
+
+// server is just a wrapper for the http.Server class
 server.on('clientError', (err, socket) => {
     socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
 });
 
 server.listen(3000, () => {
-    console.log('Listening on localhost:3000!');
+    console.log('Running at localhost:3000!');
 });
 ```
 
-### API
+## API
 
-Coming soon.
+### `createServer`
+
+```js
+const server = fogo.createServer(handlers, notFoundListener);
+```
+
+Since `fogo.createServer` returns a [`http.Server`](https://nodejs.org/api/http.html#http_class_http_server) class, you should be able to use all its methods. Please, check out the documentation for more information.
+
+It creates a server that you can listen to. It accepts two arguments:
+
+#### `handlers`: object - required
+
+An object containing your handlers for each route with/without specifying the http method. Specify a function if you want that route to listen to all http methods.
+
+```js
+const handlers = {
+    '/': (req, res, url, params) => {
+        res.end();
+    },
+    '/welcome': {
+        get: (req, res, url, params) => {
+            res.end();
+        },
+        post: (req, res, url, params) => {
+            res.end();
+        }
+    }
+};
+```
+
+Arguments received:
+
+-   `req`: [http.IncomingMessage](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
+-   `res`: [http.ServerResponse](https://nodejs.org/api/http.html#http_class_http_serverresponse)
+-   `url?`: [url.UrlWithParsedQuery](https://nodejs.org/api/url.html#url_url_parse_urlstring_parsequerystring_slashesdenotehost)
+-   `params?`: object
+
+#### `notFoundListener`: function
+
+If none of you handle has the requested route, this callback is called.
+
+`fogo` provides a default one.
+
+```js
+function defaultNotFound(req, res) {
+    res.writeHead(404);
+    res.end(http.STATUS_CODES[404]);
+}
+```
+
+The response will look like:
+
+```
+Not Found
+```
+
+Arguments received:
+
+-   `req`: [http.IncomingMessage](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
+-   `res`: [http.ServerResponse](https://nodejs.org/api/http.html#http_class_http_serverresponse)
+-   `url?`: [url.UrlWithParsedQuery](https://nodejs.org/api/url.html#url_url_parse_urlstring_parsequerystring_slashesdenotehost)
+-   `error?`: Error
+
+---
+
+Made with ❤️ enjoy it!
