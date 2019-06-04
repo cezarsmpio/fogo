@@ -1,0 +1,24 @@
+language: node_js
+node_js:
+  - '12'
+  - '10'
+  - '8'
+
+notifications:
+  email: false
+
+script: echo "Running tests against $(node -v) ..."
+
+jobs:
+  include:
+    - stage: NPM Release
+      node_js: '12'
+      script: echo "Deploying to npm..."
+      deploy:
+        provider: npm
+        email: $NPM_EMAIL
+        api_key: $NPM_TOKEN
+        skip_cleanup: true
+        on:
+          tags: true
+          branch: master
