@@ -111,7 +111,7 @@ server.listen(3000, () => {
 ### `createServer`
 
 ```js
-const server = fogo.createServer(handlers, notFoundListener);
+const server = fogo.createServer(handlers, notFoundListener, errorHandler);
 ```
 
 Since `fogo.createServer` returns a [`http.Server`](https://nodejs.org/api/http.html#http_class_http_server) class, you should be able to use all its methods. Please, check out the documentation for more information.
@@ -162,6 +162,34 @@ The response will look like:
 
 ```
 Not Found
+```
+
+Arguments received:
+
+-   `req`: [http.IncomingMessage](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
+-   `res`: [http.ServerResponse](https://nodejs.org/api/http.html#http_class_http_serverresponse)
+-   `url?`: [url.UrlWithParsedQuery](https://nodejs.org/api/url.html#url_url_parse_urlstring_parsequerystring_slashesdenotehost)
+-   `error?`: Error
+
+#### `errorHandler`: function
+
+It's called when an exception is thrown on the request.
+
+`fogo` provides a default one.
+
+```js
+function defaultErrorHandler(req, res, parsedUrl, err) {
+    console.log(err);
+
+    res.writeHead(500);
+    res.end(http.STATUS_CODES[500]);
+}
+```
+
+The response will look like:
+
+```
+Internal Server Error
 ```
 
 Arguments received:
