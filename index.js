@@ -2,12 +2,23 @@ const http = require('http');
 const url = require('url');
 const pathMatch = require('path-match')();
 
-function defaultNotFound(req, res) {
+function defaultNotFoundHandler(req, res) {
   res.writeHead(404);
   res.end(http.STATUS_CODES[404]);
 }
 
-function createServer(handlers = {}, notFound = defaultNotFound) {
+function defaultErrorHandler(req, res, parsedUrl, err) {
+  console.log(err);
+
+  res.writeHead(500);
+  res.end(http.STATUS_CODES[500]);
+}
+
+function createServer(
+  handlers = {},
+  notFoundListener = defaultNotFoundHandler,
+  errorHandler = defaultErrorHandler
+) {
   const server = http.createServer();
 
   server.on('request', async function(req, res) {
@@ -37,7 +48,11 @@ function createServer(handlers = {}, notFound = defaultNotFound) {
 
       throw new Error(http.STATUS_CODES[404]);
     } catch (err) {
-      return await notFound(req, res, parsedUrl, err);
+      if (err.message === http.STATUS_CODES[404]) {
+        return await notFoundListener(req, res, parsedUrl, err);
+      }
+
+      return await errorHandler(req, res, parsedUrl, err);
     }
   });
 
