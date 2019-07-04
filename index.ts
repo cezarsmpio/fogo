@@ -1,13 +1,27 @@
+import { IncomingMessage, ServerResponse } from 'http';
+import { UrlWithParsedQuery } from 'url';
+import { Handler, ErrorListener } from './types';
+
 const http = require('http');
 const url = require('url');
 const pathMatch = require('path-match')();
 
-function defaultNotFoundHandler(req, res) {
+function defaultNotFoundHandler(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parsedUrl: UrlWithParsedQuery,
+  err: Error
+): any {
   res.writeHead(404);
   res.end(http.STATUS_CODES[404]);
 }
 
-function defaultErrorHandler(req, res, parsedUrl, err) {
+function defaultErrorHandler(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parsedUrl: UrlWithParsedQuery,
+  err: Error
+): any {
   console.log(err);
 
   res.writeHead(500);
@@ -15,15 +29,18 @@ function defaultErrorHandler(req, res, parsedUrl, err) {
 }
 
 function createServer(
-  handlers = {},
-  notFoundListener = defaultNotFoundHandler,
-  errorHandler = defaultErrorHandler
+  handlers: Handler = {},
+  notFoundListener: ErrorListener = defaultNotFoundHandler,
+  errorHandler: ErrorListener = defaultErrorHandler
 ) {
   const server = http.createServer();
 
-  server.on('request', async function(req, res) {
-    const parsedUrl = url.parse(req.url, true);
-    const method = req.method.toLowerCase();
+  server.on('request', async function(
+    req: IncomingMessage,
+    res: ServerResponse
+  ) {
+    const parsedUrl = url.parse(req.url || '', true);
+    const method = (req.method || 'GET').toLowerCase();
     const route = Object.keys(handlers).find(path => {
       return pathMatch(path)(parsedUrl.pathname);
     });
@@ -59,4 +76,4 @@ function createServer(
   return server;
 }
 
-module.exports = { createServer };
+export { createServer };
