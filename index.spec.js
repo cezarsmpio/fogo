@@ -1,6 +1,6 @@
 const supertest = require('supertest');
 const http = require('http');
-const fogo = require('./index');
+const fogo = require('./dist/index');
 
 let server;
 let request;

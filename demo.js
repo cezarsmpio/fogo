@@ -1,4 +1,4 @@
-const fogo = require('./index');
+const fogo = require('./dist/index');
 
 const handlers = {
   '/': {
@@ -21,6 +21,6 @@ const server = fogo.createServer(handlers, (req, res) => {
   res.end('It is hard to tell, but we can not find your page :/');
 });
 
-server.listen(3000, () => {
+server.listen(process.env.NODE_PORT || 3000, () => {
   console.log('Listening on localhost:3000');
 });
