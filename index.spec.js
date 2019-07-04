@@ -45,6 +45,9 @@ const handlers = {
     res.setHeader('content-type', 'application/json');
     res.writeHead(200);
     res.end(JSON.stringify({ ...url }));
+  },
+  '/error': () => {
+    throw new Error('mocked error');
   }
 };
 
@@ -189,8 +192,8 @@ describe('not found requests - custom handler', () => {
 
   beforeAll(() => {
     customServer = fogo.createServer(handlers, (req, res) => {
-      res.writeHead(500);
-      res.end(http.STATUS_CODES[500]);
+      res.writeHead(404);
+      res.end(http.STATUS_CODES[404]);
     });
 
     customRequest = supertest(customServer);
@@ -198,23 +201,23 @@ describe('not found requests - custom handler', () => {
 
   afterAll(() => customServer.close());
 
-  it('should return status code 500 when a route does not exist', async () => {
+  it('should return status code 404 when a route does not exist', async () => {
     const result = await customRequest.get('/not-found-route');
 
-    expect(result.status).toBe(500);
+    expect(result.status).toBe(404);
   });
 
   it('should return a custom message when a route does not exist', async () => {
     const result = await customRequest.get('/not-found-route');
 
-    expect(result.text).toBe(http.STATUS_CODES[500]);
+    expect(result.text).toBe(http.STATUS_CODES[404]);
   });
 
   it('should return a custom error if a http method does not exist in an existent route', async () => {
     const result = await customRequest.options('/methods');
 
-    expect(result.status).toBe(500);
-    expect(result.text).toBe(http.STATUS_CODES[500]);
+    expect(result.status).toBe(404);
+    expect(result.text).toBe(http.STATUS_CODES[404]);
   });
 });
 
@@ -275,5 +278,54 @@ describe('headers', () => {
     const result = await request.get('/headers');
 
     expect(result.header['x-id']).toBe('123');
+  });
+});
+
+describe('error handler - default handler', () => {
+  it('should return status code 501 when an error happens', async () => {
+    const result = await request.get('/error');
+
+    expect(result.status).toBe(500);
+  });
+
+  it('should read the error message', async () => {
+    const result = await request.get('/error');
+
+    expect(result.text).toBe(http.STATUS_CODES[500]);
+  });
+});
+
+describe('error handler - custom handler', () => {
+  let customServer;
+  let customRequest;
+
+  beforeAll(() => {
+    customServer = fogo.createServer(
+      handlers,
+      (req, res) => {
+        res.writeHead(404);
+        res.end(http.STATUS_CODES[404]);
+      },
+      (req, res, url, err) => {
+        res.writeHead(501);
+        res.end(`custom error + ${err.message}`);
+      }
+    );
+
+    customRequest = supertest(customServer);
+  });
+
+  afterAll(() => customServer.close());
+
+  it('should return status code 501 when an error happens', async () => {
+    const result = await customRequest.get('/error');
+
+    expect(result.status).toBe(501);
+  });
+
+  it('should read the error message', async () => {
+    const result = await customRequest.get('/error');
+
+    expect(result.text).toBe('custom error + mocked error');
   });
 });
