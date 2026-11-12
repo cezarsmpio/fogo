@@ -2,203 +2,216 @@
 
 > Yet another node.js framework, but simpler.
 
-[![Build Status](https://travis-ci.com/cezarsmpio/fogo.svg?branch=master)](https://travis-ci.com/cezarsmpio/fogo)
-[![npm download](https://img.shields.io/npm/dm/fogo.svg)](https://www.npmjs.com/package/fogo)
-[![GitHub issues](https://img.shields.io/github/issues/cezarsmpio/fogo.svg)](https://github.com/cezarsmpio/fogo/issues)
-[![minified + gzip](https://badgen.net/bundlephobia/minzip/fogo)](https://bundlephobia.com/result?p=fogo)
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
+[![CI](https://github.com/cezarsmpio/fogo/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/cezarsmpio/fogo/actions/workflows/ci.yml)
+[![npm downloads](https://img.shields.io/npm/dm/fogo.svg)](https://www.npmjs.com/package/fogo)
 [![npm version](https://img.shields.io/npm/v/fogo.svg)](https://www.npmjs.com/package/fogo)
-[![GitHub contributors](https://img.shields.io/github/contributors/cezarsmpio/fogo.svg)](https://GitHub.com/cezarsmpio/fogo/graphs/contributors/)
-[![GitHub stars](https://img.shields.io/github/stars/cezarsmpio/fogo.svg?style=social&label=Star)](https://github.com/cezarsmpio/fogo)
+[![node](https://img.shields.io/node/v/fogo.svg)](https://nodejs.org)
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-### Install
+`fogo` means _fire_ in Portuguese. It is a tiny, dependency-free router and server wrapper around the
+[Node.js `http` module](https://nodejs.org/api/http.html).
 
+Use it when you want the raw `http` module without writing route matching yourself. It is a good fit
+for microservices and JSON/REST APIs. It is not a full application framework: there are no
+middlewares, template engines, or hidden abstractions.
+
+- Zero runtime dependencies
+- TypeScript-first, with bundled type declarations
+- Async/await friendly handlers
+- Static, dynamic (`:param`), optional (`:param?`), and wildcard (`*rest`) routes
+- Works with both ESM `import` and CommonJS `require`
+- Node.js 22+ (current LTS lines)
+
+## Install
+
+```sh
+npm install fogo
 ```
-npm install fogo --save
-```
 
-`fogo` supports only node 8+ because of `async`/`await`.
+## Quick start
 
-### Why? Why? Why?
-
-`fogo`, means `fire` in Portuguese 🤷‍♀️. It is basically a wrapper for the [node.js http module](https://nodejs.org/api/http.html#http_class_http_server).
-
-Sometimes `Express`, which is a good framework, is too much for your needs or too heavy because of its tons of dependencies, especially if you do microservices or have a lot of CI/CD going on.
-
-Only use `fogo` if you want to use the `http` module provided by node.js but without dealing with routes.
-
-`fogo` does not support middlewares. You _really_ don't need it.
-
-What `fogo` is good for:
-
--   microservices
--   restful/json apis
-
-What `fogo` is not good for:
-
--   applications using template engines
--   monolithic applications
-
-An alternative to `fogo` is [`micro`](https://github.com/zeit/micro).
-
-### Usage
+ESM:
 
 ```js
-const fogo = require('fogo');
+import { createServer } from 'fogo';
 
 const handlers = {
-    '/': (req, res, url) => {
-        res.writeHead(200); // Pure node.js!
+  '/': (req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('Hello world!');
+  },
+  '/products/:id': {
+    get: async (req, res, url, params) => {
+      const product = await getProductFromDB(params.id);
 
-        res.end('Hello world!'); // you see?!?
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(product));
     },
-    '/products/:id': {
-        get: async (req, res, url, params) => {
-            try {
-                await validateRequest(req, schema); // Why middlewares? :)
-                const product = await getProductFromDB(params.id);
-
-                res.writeHead(200);
-                res.end(JSON.stringify(product));
-            } catch (err) {
-                res.writeHead(404);
-                res.end('Oops, this product does not exist.');
-            }
-        }
-    },
-    '/customers': {
-        post: async (req, res) => {
-            try {
-                await validateRequest(req, schema); // Why middlewares? :)
-                const body = await json(req);
-                const customer = await createCustomer(body.customer);
-
-                res.setHeader('x-foo', 'bar');
-                res.writeHead(201);
-                res.end('Customer created');
-            } catch (err) {
-                res.writeHead(403);
-                res.end(
-                    JSON.stringify({
-                        statusCode: 403,
-                        message: 'Something crazy just happened!'
-                    })
-                );
-            }
-        }
-    }
+  },
+  '/files/*path': (req, res, url, params) => {
+    res.end(`Serving ${params.path}`);
+  },
 };
 
 const notFoundHandler = (req, res) => {
-    res.writeHead(404);
-    res.end('Not found, sorry!');
+  res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+  res.end('Not found, sorry!');
 };
 
-const server = fogo.createServer(handlers, notFoundHandler);
-
-// server is just a wrapper for the http.Server class
-server.on('clientError', (err, socket) => {
-    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
-});
+const server = createServer(handlers, notFoundHandler);
 
 server.listen(3000, () => {
-    console.log('Running at localhost:3000!');
+  console.log('Running at http://localhost:3000');
 });
 ```
+
+CommonJS:
+
+```js
+const { createServer } = require('fogo');
+```
+
+`createServer` returns a real [`http.Server`](https://nodejs.org/api/http.html#class-httpserver),
+so all of its events and methods are available.
 
 ## API
 
-### `createServer`
+### `createServer(handlers?, notFoundListener?, errorHandler?)`
 
-```js
-const server = fogo.createServer(handlers, notFoundListener, errorHandler);
-```
+Creates and returns an `http.Server`.
 
-Since `fogo.createServer` returns a [`http.Server`](https://nodejs.org/api/http.html#http_class_http_server) class, you should be able to use all its methods. Please, check out the documentation for more information.
+#### `handlers`
 
-It creates a server that you can listen to. It accepts two arguments:
+An object mapping route patterns to handlers. A handler can be:
 
-#### `handlers`: object - required
-
-An object containing your handlers for each route with/without specifying the http method. Specify a function if you want that route to listen to all http methods.
+- a function, which receives every HTTP method; or
+- an object keyed by lowercase HTTP method (`get`, `post`, `put`, `patch`, `delete`, `head`, ...).
 
 ```js
 const handlers = {
-    '/': (req, res, url, params) => {
-        res.end();
-    },
-    '/welcome': {
-        get: (req, res, url, params) => {
-            res.end();
-        },
-        post: (req, res, url, params) => {
-            res.end();
-        }
-    }
+  '/': (req, res) => res.end(),
+  '/welcome': {
+    get: (req, res) => res.end('GET'),
+    post: (req, res) => res.end('POST'),
+  },
 };
 ```
 
-Arguments received:
+Every handler receives:
 
--   `req`: [http.IncomingMessage](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
--   `res`: [http.ServerResponse](https://nodejs.org/api/http.html#http_class_http_serverresponse)
--   `url?`: [url.UrlWithParsedQuery](https://nodejs.org/api/url.html#url_url_parse_urlstring_parsequerystring_slashesdenotehost)
--   `params?`: object
+| Argument | Type | Description |
+| --- | --- | --- |
+| `req` | [`http.IncomingMessage`](https://nodejs.org/api/http.html#class-httpincomingmessage) | The request. |
+| `res` | [`http.ServerResponse`](https://nodejs.org/api/http.html#class-httpserverresponse) | The response. |
+| `url` | `URL & { query: Query }` | WHATWG URL with parsed query values. |
+| `params` | `Record<string, string>` | Route parameters. |
 
-#### `notFoundListener`: function
-
-If none of you handle has the requested route, this callback is called.
-
-`fogo` provides a default one.
+`url.query` mirrors `node:querystring` behavior: a repeated key becomes an array, and a key without
+a value becomes an empty string.
 
 ```js
-function defaultNotFound(req, res) {
-    res.writeHead(404);
-    res.end(http.STATUS_CODES[404]);
+'/search': (req, res, url) => {
+  // GET /search?tag=node&tag=web&empty=
+  url.pathname; // '/search'
+  url.search; // '?tag=node&tag=web&empty='
+  url.query; // { tag: ['node', 'web'], empty: '' }
+  url.searchParams.get('tag'); // 'node'
+  res.end();
+};
+```
+
+Handlers may be `async`; returned promises are awaited. If a handler throws or rejects, the error
+handler is called.
+
+#### `notFoundListener`
+
+Called when no route matches the path, or when a route exists but does not handle the request method.
+The default returns `404` with the plain-text body `Not Found`.
+
+```js
+function notFoundListener(req, res, url, error) {
+  res.writeHead(404, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ error: error.message }));
 }
 ```
 
-The response will look like:
+The `error` argument is a `NotFoundError` with `statusCode = 404`.
 
-```
-Not Found
-```
+#### `errorHandler`
 
-Arguments received:
-
--   `req`: [http.IncomingMessage](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
--   `res`: [http.ServerResponse](https://nodejs.org/api/http.html#http_class_http_serverresponse)
--   `url?`: [url.UrlWithParsedQuery](https://nodejs.org/api/url.html#url_url_parse_urlstring_parsequerystring_slashesdenotehost)
--   `error?`: Error
-
-#### `errorHandler`: function
-
-It's called when an exception is thrown on the request.
-
-`fogo` provides a default one.
+Called when a handler throws or rejects. The default logs the error with `console.error` and returns
+`500` with the plain-text body `Internal Server Error`. If the response headers have already been
+sent, the default handler simply ends the response.
 
 ```js
-function defaultErrorHandler(req, res, parsedUrl, err) {
-    console.log(err);
+function errorHandler(req, res, url, error) {
+  req.log?.error(error);
 
-    res.writeHead(500);
-    res.end(http.STATUS_CODES[500]);
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+
+  res.writeHead(500, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Internal Server Error' }));
 }
 ```
 
-The response will look like:
+### Route patterns
 
+| Pattern | Matches | Params |
+| --- | --- | --- |
+| `/` | `/` | `{}` |
+| `/health` | `/health`, `/health/` | `{}` |
+| `/users/:id` | `/users/42` | `{ id: '42' }` |
+| `/users/:id/:name?` | `/users/42`, `/users/42/cezar` | `{ id: '42', name?: 'cezar' }` |
+| `/files/*path` | `/files/a/b.txt` | `{ path: 'a/b.txt' }` |
+
+Routes are matched in insertion order. URI-encoded path segments and parameters are decoded.
+
+## Migrating from 1.x
+
+Version 2 is a modernized major release:
+
+- Requires Node.js 22 or newer.
+- Ships ESM and CommonJS builds with an `exports` map.
+- Uses the WHATWG `URL` API instead of the deprecated `url.parse`.
+  `url.pathname`, `url.search`, and `url.query` still work; `url.query` keeps the old
+  `node:querystring` shape.
+- Removed the `path-match` dependency; routing is built in.
+- `HEAD` requests fall back to the `GET` handler when no `head` handler exists.
+- Handlers always receive a params object, even for static routes.
+- Not-found detection uses a typed `NotFoundError` instead of matching an error message string.
+
+## Development
+
+```sh
+npm install
+npm run check         # lint and format check (Biome)
+npm run typecheck     # TypeScript, no emit
+npm test              # Vitest
+npm run test:coverage # Vitest with coverage thresholds
+npm run build         # ESM + CJS + declarations (tsup)
+npm run test:package  # smoke-test the built ESM and CommonJS entry points
+npm run check:package # validate package exports/types (publint + attw)
 ```
-Internal Server Error
-```
 
-Arguments received:
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/). Commits must
+follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 
--   `req`: [http.IncomingMessage](https://nodejs.org/api/http.html#http_class_http_incomingmessage)
--   `res`: [http.ServerResponse](https://nodejs.org/api/http.html#http_class_http_serverresponse)
--   `url?`: [url.UrlWithParsedQuery](https://nodejs.org/api/url.html#url_url_parse_urlstring_parsequerystring_slashesdenotehost)
--   `error?`: Error
+- `fix: ...` publishes a patch
+- `feat: ...` publishes a minor
+- `feat!: ...` or a `BREAKING CHANGE:` footer publishes a major
 
----
+Pushing to `main` (or `master`) runs the Release workflow, which tests, builds, publishes to npm
+with provenance, writes `CHANGELOG.md`, and creates a GitHub release.
 
-Made with ❤️ enjoy it!
+The preferred authentication is npm
+[trusted publishing](https://docs.npmjs.com/trusted-publishers): configure this GitHub repository as
+a trusted publisher for the `fogo` package on npmjs.com. The workflow already requests the
+`id-token: write` permission required for OIDC. As a fallback, set an `NPM_TOKEN` repository secret
+with publish access to `fogo`. `GITHUB_TOKEN` is provided by GitHub Actions.
+
+## License
+
+[MIT](./LICENSE)
