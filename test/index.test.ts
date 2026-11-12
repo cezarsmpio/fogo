@@ -273,6 +273,22 @@ describe('routes', () => {
     expect(result.text).toBe(STATUS_CODES[404]);
   });
 
+  it('returns 404 when a handler is removed after server creation', async () => {
+    // The handler map is read per request, so a missing entry must not crash.
+    const mutableHandlers: Handler = {
+      '/removed': (_req, res) => {
+        res.end();
+      },
+    };
+    const { request: client } = app(mutableHandlers);
+
+    delete mutableHandlers['/removed'];
+
+    const result = await client.get('/removed');
+
+    expect(result.status).toBe(404);
+  });
+
   it('returns 404 for unknown routes using the default listener', async () => {
     const { request: client } = app(handlers);
     const result = await client.get('/not-found-route');

@@ -218,7 +218,8 @@ export class Router {
       if (this.#firstNonStaticIndex === -1) {
         this.#firstNonStaticIndex = indexedRoute.index;
       }
-    } else if (!this.#staticRoutes.has(route.staticPath)) {
+    } else {
+      // Duplicate keys are rejected above, so each static path is stored once.
       this.#staticRoutes.set(route.staticPath, indexedRoute);
     }
 

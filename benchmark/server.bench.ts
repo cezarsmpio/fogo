@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 import { createServer } from '../src/index';
 
 type RequestListener = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -34,21 +34,17 @@ const response = {
 const benchOptions = { time: 1_000, warmupTime: 250 };
 
 describe('request dispatch', () => {
-  bench(
-    'static route request',
-    async () => {
-      request.url = '/health';
-      await listener(request, response);
-    },
-    benchOptions,
-  );
-
-  bench(
-    'dynamic route request with query',
-    async () => {
-      request.url = '/users/42?fields=name';
-      await listener(request, response);
-    },
-    benchOptions,
-  );
+  test('request handling', async ({ bench }) => {
+    await bench.compare(
+      bench('static route request', async () => {
+        request.url = '/health';
+        await listener(request, response);
+      }),
+      bench('dynamic route request with query', async () => {
+        request.url = '/users/42?fields=name';
+        await listener(request, response);
+      }),
+      benchOptions,
+    );
+  });
 });
