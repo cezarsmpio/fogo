@@ -23,7 +23,7 @@ middlewares, template engines, or hidden abstractions.
 - 100% test coverage, including 100% branch coverage
 - Minified ESM and CommonJS builds from [tsdown](https://tsdown.dev)
 - Works with both ESM `import` and CommonJS `require`
-- Node.js 18+, tested on Node 18, 20, 22, 24, and 26 (Node 26 is the default)
+- Node.js 18+ at runtime; CI covers Node 18, 20, 22, 24, and 26 (Node 26 is the default)
 
 ## Install
 

@@ -208,6 +208,12 @@ describe('Router', () => {
     expect(router.find('/')?.route.path).toBe('/');
   });
 
+  it('returns no match for the root path when no route is registered', () => {
+    const router = new Router();
+
+    expect(router.find('/')).toBeNull();
+  });
+
   it('rejects paths with extra segments', () => {
     const router = new Router();
     router.add('/users/:id');

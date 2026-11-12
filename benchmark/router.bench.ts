@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { describe, test } from 'vitest';
 import { Router } from '../src/router';
 
 function createRouter(routeCount: number): Router {
@@ -31,51 +31,27 @@ const staticRouter = (() => {
 const benchOptions = { time: 1_000, warmupTime: 250 };
 
 describe('router lookup', () => {
-  bench(
-    'static route among 100 routes',
-    () => {
-      staticRouter.find('/static/99');
-    },
-    benchOptions,
-  );
-
-  bench(
-    'dynamic route among 100 routes',
-    () => {
-      router.find('/items/99/abc');
-    },
-    benchOptions,
-  );
-
-  bench(
-    'optional parameter',
-    () => {
-      router.find('/search/fogo');
-    },
-    benchOptions,
-  );
-
-  bench(
-    'optional parameter omitted',
-    () => {
-      router.find('/search');
-    },
-    benchOptions,
-  );
-
-  bench(
-    'wildcard route',
-    () => {
-      router.find('/files/docs/2026/report.pdf');
-    },
-    benchOptions,
-  );
-
-  bench(
-    'no match',
-    () => {
-      router.find('/missing/path');
-    },
-    benchOptions,
-  );
+  test('route matching', async ({ bench }) => {
+    await bench.compare(
+      bench('static route among 100 routes', () => {
+        staticRouter.find('/static/99');
+      }),
+      bench('dynamic route among 100 routes', () => {
+        router.find('/items/99/abc');
+      }),
+      bench('optional parameter', () => {
+        router.find('/search/fogo');
+      }),
+      bench('optional parameter omitted', () => {
+        router.find('/search');
+      }),
+      bench('wildcard route', () => {
+        router.find('/files/docs/2026/report.pdf');
+      }),
+      bench('no match', () => {
+        router.find('/missing/path');
+      }),
+      benchOptions,
+    );
+  });
 });
