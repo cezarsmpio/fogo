@@ -206,11 +206,20 @@ follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 Pushing to `main` (or `master`) runs the Release workflow, which tests, builds, publishes to npm
 with provenance, writes `CHANGELOG.md`, and creates a GitHub release.
 
-The preferred authentication is npm
-[trusted publishing](https://docs.npmjs.com/trusted-publishers): configure this GitHub repository as
-a trusted publisher for the `fogo` package on npmjs.com. The workflow already requests the
-`id-token: write` permission required for OIDC. As a fallback, set an `NPM_TOKEN` repository secret
-with publish access to `fogo`. `GITHUB_TOKEN` is provided by GitHub Actions.
+Publishing uses npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) with OIDC, so no
+long-lived `NPM_TOKEN` is stored. The workflow requests `id-token: write`, and the trusted publisher
+entry for this repository must exist on npmjs.com:
+
+```sh
+# Run locally once while logged in to npm with 2FA enabled.
+npm trust github fogo \
+  --file release.yml \
+  --repo cezarsmpio/fogo \
+  --allow-publish
+```
+
+`GITHUB_TOKEN` is provided by GitHub Actions. Once the trusted publisher is configured, the Release
+workflow publishes the next semantic-release version to npm with provenance.
 
 ## License
 

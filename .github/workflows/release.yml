@@ -53,9 +53,11 @@ jobs:
       - name: Validate package exports and types
         run: npm run check:package
 
+      # Authentication uses npm trusted publishing (OIDC): no NPM_TOKEN is
+      # configured or read. The `id-token: write` permission above and the
+      # trusted publisher entry for this repository/workflow are required.
       - name: Publish with semantic-release
         run: npm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
