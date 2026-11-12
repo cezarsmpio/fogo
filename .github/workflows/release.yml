@@ -32,6 +32,7 @@ jobs:
         with:
           node-version: 26
           cache: npm
+          registry-url: 'https://registry.npmjs.org'
 
       # Authentication uses npm trusted publishing (OIDC): no NPM_TOKEN is
       # configured or read. The `id-token: write` permission above and the

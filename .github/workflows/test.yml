@@ -5,23 +5,17 @@ on:
 
 jobs:
   test:
-    name: Node ${{ matrix.node }}
+    name: Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Vitest 5 requires Node.js 22.12+, so the test toolchain no longer
-        # runs on Node 18 or 20. The library build still targets Node 18.
-        node: [22, 24, 26]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Use Node.js ${{ matrix.node }}
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 26
           cache: npm
 
       - name: Install dependencies
@@ -36,61 +30,6 @@ jobs:
       - name: Test with coverage
         run: npm run test:coverage
 
-  compat:
-    name: Node ${{ matrix.node }} runtime
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # The toolchain (Vitest 5, tsdown) requires Node 22.12+, but the
-        # published package still supports Node 18+. Build once with Node 26
-        # and run the package smoke test on the older runtimes.
-        node: [18, 20]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Use Node.js 26
-        uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Use Node.js ${{ matrix.node }}
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ matrix.node }}
-
-      - name: Test package on Node ${{ matrix.node }}
-        run: node test/package-smoke.mjs
-
-  package:
-    name: Package
-    needs: test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      # tsdown requires Node.js 22.18+, so build validation uses the default
-      # Node 26 toolchain while runtime tests cover Node 22 through 26.
-      - name: Use Node.js 26
-        uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Build
         run: npm run build
 
@@ -102,3 +41,44 @@ jobs:
 
       - name: Verify package contents
         run: npm pack --dry-run
+
+      - name: Benchmark smoke test
+        run: npm run bench
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+
+  compat:
+    name: Node ${{ matrix.node }} runtime
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The toolchain (Vitest 5, tsdown) requires Node 22.12+, so the full
+        # suite runs on Node 26 above. The published package still supports
+        # Node 18+, verified here against the build produced above.
+        node: [18, 20, 22, 24, 26]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Download build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Test package on Node ${{ matrix.node }}
+        run: npm run test:package
