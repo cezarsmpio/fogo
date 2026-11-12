@@ -3,7 +3,6 @@ import {
   type IncomingMessage,
   type Server,
   type ServerResponse,
-  STATUS_CODES,
 } from 'node:http';
 import { Router } from './router';
 import type {
@@ -26,33 +25,30 @@ export type {
   QueryValue,
 } from './types';
 
+const BASE_URL = 'http://localhost';
+const DEFAULT_PATH = '/';
+const NOT_FOUND_STATUS = 404;
+const NOT_FOUND_MESSAGE = 'Not Found';
+const SERVER_ERROR_STATUS = 500;
+const SERVER_ERROR_MESSAGE = 'Internal Server Error';
+
 /**
  * Internal signal used to distinguish "route not found" from application
  * errors without relying on error message strings.
  */
 export class NotFoundError extends Error {
-  readonly statusCode = 404;
+  readonly statusCode = NOT_FOUND_STATUS;
 
-  constructor(message = STATUS_CODES[404] ?? 'Not Found') {
+  constructor(message = NOT_FOUND_MESSAGE) {
     super(message);
     this.name = 'NotFoundError';
   }
 }
 
-function parseRequestUrl(req: IncomingMessage): ParsedUrl {
-  const target = req.url ?? '/';
-  let parsed: URL;
-
-  try {
-    // A fixed base keeps parsing deterministic and avoids trusting Host.
-    parsed = new URL(target, 'http://localhost');
-  } catch {
-    parsed = new URL('/', 'http://localhost');
-  }
-
+function parseQuery(searchParams: URLSearchParams): Query {
   const query = Object.create(null) as Query;
 
-  for (const [key, value] of parsed.searchParams) {
+  for (const [key, value] of searchParams) {
     const current = query[key];
 
     if (current === undefined) {
@@ -64,16 +60,40 @@ function parseRequestUrl(req: IncomingMessage): ParsedUrl {
     }
   }
 
-  return Object.assign(parsed, { query });
+  return query;
 }
 
-function sendStatus(res: ServerResponse, statusCode: number): void {
+function parseRequestUrl(req: IncomingMessage): ParsedUrl {
+  const target = req.url ?? DEFAULT_PATH;
+  let parsed: URL;
+
+  try {
+    // A fixed base keeps parsing deterministic and avoids trusting Host.
+    parsed = new URL(target, BASE_URL);
+  } catch {
+    parsed = new URL(DEFAULT_PATH, BASE_URL);
+  }
+
+  let query: Query | undefined;
+
+  Object.defineProperty(parsed, 'query', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      query ??= parseQuery(parsed.searchParams);
+      return query;
+    },
+  });
+
+  return parsed as ParsedUrl;
+}
+
+function sendStatus(res: ServerResponse, statusCode: number, body: string): void {
   if (res.headersSent) {
     if (!res.writableEnded) res.end();
     return;
   }
 
-  const body = STATUS_CODES[statusCode] ?? String(statusCode);
   res.writeHead(statusCode, {
     'content-type': 'text/plain; charset=utf-8',
     'content-length': Buffer.byteLength(body),
@@ -87,7 +107,7 @@ function defaultNotFoundHandler(
   _parsedUrl: ParsedUrl,
   _error: Error,
 ): void {
-  sendStatus(res, 404);
+  sendStatus(res, NOT_FOUND_STATUS, NOT_FOUND_MESSAGE);
 }
 
 function defaultErrorHandler(
@@ -97,7 +117,7 @@ function defaultErrorHandler(
   error: Error,
 ): void {
   console.error(error);
-  sendStatus(res, 500);
+  sendStatus(res, SERVER_ERROR_STATUS, SERVER_ERROR_MESSAGE);
 }
 
 function toError(value: unknown): Error {
@@ -174,7 +194,7 @@ export function createServer(
         }
       } catch {
         // A failing error handler must not crash the process.
-        sendStatus(res, 500);
+        sendStatus(res, SERVER_ERROR_STATUS, SERVER_ERROR_MESSAGE);
       }
     }
   });

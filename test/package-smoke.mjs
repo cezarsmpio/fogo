@@ -7,8 +7,12 @@ const cjs = require('../dist/index.cjs');
 
 assert.equal(typeof createServerEsm, 'function', 'ESM build must export createServer');
 assert.equal(typeof cjs.createServer, 'function', 'CommonJS build must export createServer');
-assert.equal(cjs.NotFoundError.name, 'NotFoundError', 'CommonJS build must export NotFoundError');
-assert.equal(NotFoundError.name, 'NotFoundError', 'ESM build must export NotFoundError');
+assert.equal(
+  new cjs.NotFoundError().name,
+  'NotFoundError',
+  'CommonJS build must export NotFoundError',
+);
+assert.equal(new NotFoundError().name, 'NotFoundError', 'ESM build must export NotFoundError');
 
 const server = createServerEsm({
   '/hello/:name': (_req, res, url, params) => {

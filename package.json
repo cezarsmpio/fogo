@@ -29,8 +29,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -40,6 +40,8 @@
     "test:coverage": "vitest run --coverage",
     "test:package": "node test/package-smoke.mjs",
     "check:package": "publint && attw --pack .",
+    "check:size": "node scripts/size.mjs",
+    "bench": "vitest bench --run",
     "prepack": "npm run build",
     "release": "semantic-release",
     "check": "biome check ."
@@ -85,7 +87,7 @@
     "publint": "^0.3.25",
     "semantic-release": "^25.0.9",
     "supertest": "^7.3.2",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.23.7",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   }

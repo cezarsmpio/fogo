@@ -1,13 +1,16 @@
 export type RouteParams = Record<string, string>;
 
+type StaticSegment = { type: 'static'; value: string };
 type PatternSegment =
-  | { type: 'static'; value: string }
+  | StaticSegment
   | { type: 'param'; name: string; optional: boolean }
   | { type: 'wildcard'; name: string };
 
 export interface CompiledRoute {
   readonly path: string;
   readonly segments: readonly PatternSegment[];
+  readonly staticPrefix: string;
+  readonly staticPath: string | null;
 }
 
 export interface RouteMatch {
@@ -15,10 +18,22 @@ export interface RouteMatch {
   readonly params: RouteParams;
 }
 
+interface IndexedRoute {
+  readonly route: CompiledRoute;
+  readonly index: number;
+}
+
+const ROOT_PATH = '/';
 const PARAM_PATTERN = /^:([A-Za-z0-9_]+)(\?)?$/;
 const WILDCARD_PATTERN = /^\*([A-Za-z0-9_]*)$/;
 
+function isStaticSegment(segment: PatternSegment): segment is StaticSegment {
+  return segment.type === 'static';
+}
+
 function decodeSegment(segment: string): string {
+  if (!segment.includes('%')) return segment;
+
   try {
     return decodeURIComponent(segment);
   } catch {
@@ -27,12 +42,32 @@ function decodeSegment(segment: string): string {
 }
 
 function splitPath(pathname: string): string[] {
-  if (pathname === '/' || pathname === '') return [];
+  if (pathname === ROOT_PATH || pathname === '') return [];
 
   const normalized = pathname.replace(/\/+$/, '');
   if (normalized === '') return [];
 
-  return normalized.split('/').slice(1).map(decodeSegment);
+  return normalized.split(ROOT_PATH).slice(1).map(decodeSegment);
+}
+
+function toPathKey(segments: readonly string[]): string {
+  return segments.length === 0 ? ROOT_PATH : `${ROOT_PATH}${segments.join(ROOT_PATH)}`;
+}
+
+function toStaticPrefix(segments: readonly PatternSegment[]): string {
+  if (segments.length === 0) return ROOT_PATH;
+
+  const staticValues: string[] = [];
+
+  for (const segment of segments) {
+    if (!isStaticSegment(segment)) {
+      return staticValues.length === 0 ? '' : toPathKey(staticValues);
+    }
+
+    staticValues.push(segment.value);
+  }
+
+  return toPathKey(staticValues);
 }
 
 /**
@@ -48,11 +83,11 @@ export function compilePath(path: string): CompiledRoute {
     throw new TypeError('Route path must be a non-empty string');
   }
 
-  if (!path.startsWith('/')) {
+  if (!path.startsWith(ROOT_PATH)) {
     throw new TypeError(`Route path must start with "/": ${path}`);
   }
 
-  const rawSegments = path === '/' ? [] : path.replace(/\/+$/, '').split('/').slice(1);
+  const rawSegments = path === ROOT_PATH ? [] : path.replace(/\/+$/, '').split(ROOT_PATH).slice(1);
 
   const segments: PatternSegment[] = rawSegments.map((segment) => {
     const param = PARAM_PATTERN.exec(segment);
@@ -80,7 +115,16 @@ export function compilePath(path: string): CompiledRoute {
     throw new TypeError(`Wildcard must be the last segment: ${path}`);
   }
 
-  return { path, segments };
+  const staticPath = segments.every(isStaticSegment)
+    ? toPathKey(segments.map((segment) => segment.value))
+    : null;
+
+  return {
+    path,
+    segments,
+    staticPrefix: toStaticPrefix(segments),
+    staticPath,
+  };
 }
 
 function matchSegments(
@@ -120,26 +164,55 @@ function matchSegments(
     return null;
   }
 
-  const rest = pathSegments.slice(pathIndex).join('/');
+  const rest = pathSegments.slice(pathIndex).join(ROOT_PATH);
   return { ...params, [segment.name]: rest };
 }
 
 /**
  * A small, dependency-free router backed by compiled route patterns.
+ *
+ * Exact static routes use a direct lookup. Dynamic routes are grouped by
+ * their static prefix so unrelated routes are skipped.
  */
 export class Router {
-  readonly #routes: CompiledRoute[] = [];
+  readonly #routes: IndexedRoute[] = [];
+  readonly #staticRoutes = new Map<string, IndexedRoute>();
+  readonly #routesByStaticPrefix = new Map<string, IndexedRoute[]>();
+  #firstNonStaticIndex = -1;
 
   add(path: string): CompiledRoute {
     const route = compilePath(path);
-    this.#routes.push(route);
+    const indexedRoute = { route, index: this.#routes.length };
+
+    this.#routes.push(indexedRoute);
+
+    const bucket = this.#routesByStaticPrefix.get(route.staticPrefix);
+    if (bucket) {
+      bucket.push(indexedRoute);
+    } else {
+      this.#routesByStaticPrefix.set(route.staticPrefix, [indexedRoute]);
+    }
+
+    if (route.staticPath === null) {
+      if (this.#firstNonStaticIndex === -1) {
+        this.#firstNonStaticIndex = indexedRoute.index;
+      }
+    } else if (!this.#staticRoutes.has(route.staticPath)) {
+      this.#staticRoutes.set(route.staticPath, indexedRoute);
+    }
+
     return route;
   }
 
   find(pathname: string): RouteMatch | null {
     const pathSegments = splitPath(pathname);
+    const staticMatch = this.#staticRoutes.get(toPathKey(pathSegments));
 
-    for (const route of this.#routes) {
+    if (staticMatch && this.#isFirstPossibleMatch(staticMatch)) {
+      return { route: staticMatch.route, params: {} };
+    }
+
+    for (const { route } of this.#candidatesFor(pathSegments)) {
       const params = matchSegments(route.segments, pathSegments, 0, 0, {});
       if (params) return { route, params };
     }
@@ -149,5 +222,34 @@ export class Router {
 
   get size(): number {
     return this.#routes.length;
+  }
+
+  #isFirstPossibleMatch(route: IndexedRoute): boolean {
+    return this.#firstNonStaticIndex === -1 || route.index < this.#firstNonStaticIndex;
+  }
+
+  #candidatesFor(pathSegments: readonly string[]): readonly IndexedRoute[] {
+    const buckets: IndexedRoute[][] = [];
+    const dynamicBucket = this.#routesByStaticPrefix.get('');
+
+    if (dynamicBucket) buckets.push(dynamicBucket);
+
+    if (pathSegments.length === 0) {
+      const rootBucket = this.#routesByStaticPrefix.get(ROOT_PATH);
+      if (rootBucket) buckets.push(rootBucket);
+    } else {
+      let prefix = '';
+
+      for (const segment of pathSegments) {
+        prefix += `${ROOT_PATH}${segment}`;
+        const bucket = this.#routesByStaticPrefix.get(prefix);
+        if (bucket) buckets.push(bucket);
+      }
+    }
+
+    if (buckets.length === 0) return [];
+    if (buckets.length === 1) return buckets[0] as IndexedRoute[];
+
+    return buckets.flat().sort((left, right) => left.index - right.index);
   }
 }

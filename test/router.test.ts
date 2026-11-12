@@ -110,6 +110,54 @@ describe('Router', () => {
     expect(router.find('/users/me')?.route.path).toBe('/users/:id');
   });
 
+  it('groups routes that share a static prefix', () => {
+    const router = new Router();
+    router.add('/users/:id');
+    router.add('/users/:name');
+
+    expect(router.find('/users/fogo')?.route.path).toBe('/users/:id');
+  });
+
+  it('uses the static fast path when the static route comes first', () => {
+    const router = new Router();
+    const staticRoute = router.add('/users/me');
+    router.add('/users/:id');
+
+    expect(router.find('/users/me')?.route).toBe(staticRoute);
+    expect(router.find('/users/42')?.params).toEqual({ id: '42' });
+  });
+
+  it('keeps the first static route when a path is registered twice', () => {
+    const router = new Router();
+    const firstRoute = router.add('/duplicate');
+    router.add('/duplicate');
+
+    expect(router.find('/duplicate')?.route).toBe(firstRoute);
+  });
+
+  it('falls back to ordered matching when a dynamic route comes first', () => {
+    const router = new Router();
+    router.add('/:section/:id');
+    router.add('/users/:id');
+
+    expect(router.find('/users/42')?.route.path).toBe('/:section/:id');
+  });
+
+  it('matches a root route after a dynamic route', () => {
+    const router = new Router();
+    router.add('/:id');
+    router.add('/');
+
+    expect(router.find('/')?.route.path).toBe('/');
+  });
+
+  it('rejects paths with extra segments', () => {
+    const router = new Router();
+    router.add('/users/:id');
+
+    expect(router.find('/users/42/extra')).toBeNull();
+  });
+
   it('reports the number of registered routes', () => {
     const router = new Router();
     router.add('/a');

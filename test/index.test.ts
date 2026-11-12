@@ -1,8 +1,8 @@
-import { Server, STATUS_CODES } from 'node:http';
+import { type IncomingMessage, Server, type ServerResponse, STATUS_CODES } from 'node:http';
 import { connect } from 'node:net';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createServer, type Handler, type NotFoundError } from '../src/index';
+import { createServer, type Handler, NotFoundError } from '../src/index';
 
 const servers: Server[] = [];
 
@@ -53,13 +53,17 @@ const handlers: Handler = {
     res.end();
   },
   '/url': (_req, res, url) => {
+    const query = url.query;
+    const secondQuery = url.query;
+
     res.setHeader('content-type', 'application/json');
     res.writeHead(200);
     res.end(
       JSON.stringify({
         pathname: url.pathname,
         search: url.search,
-        query: url.query,
+        query,
+        sameQueryInstance: query === secondQuery,
         isUrl: url instanceof URL,
       }),
     );
@@ -79,6 +83,13 @@ const handlers: Handler = {
     res.writeHead(200);
     res.end('partial');
     throw new Error('too late');
+  },
+  '/after-headers-open': (_req, res) => {
+    res.writeHead(202);
+    throw new Error('headers already sent');
+  },
+  '/throw-string': () => {
+    throw 'plain failure';
   },
 };
 
@@ -124,6 +135,39 @@ describe('createServer', () => {
         if (error) reject(error);
       });
     });
+  });
+
+  it('defaults a missing URL and method to GET /', async () => {
+    const { server } = app({
+      '/': (_req, res) => {
+        res.writeHead(200);
+        res.end('root');
+      },
+    });
+    const listener = server.listeners('request')[0] as (
+      req: IncomingMessage,
+      res: ServerResponse,
+    ) => Promise<void>;
+    const response = {
+      headersSent: false,
+      writableEnded: false,
+      setHeader: vi.fn(),
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    } as unknown as ServerResponse;
+
+    await listener({ headers: {} } as IncomingMessage, response);
+
+    expect(response.writeHead).toHaveBeenCalledWith(200);
+    expect(response.end).toHaveBeenCalledWith('root');
+  });
+
+  it('creates NotFoundError with the default status and message', () => {
+    const error = new NotFoundError();
+
+    expect(error.statusCode).toBe(404);
+    expect(error.message).toBe(STATUS_CODES[404]);
+    expect(error.name).toBe('NotFoundError');
   });
 
   it('invokes the listen callback', async () => {
@@ -291,6 +335,13 @@ describe('request URL', () => {
     expect(result.body.query).toEqual({ id: '123', name: 'fogo' });
   });
 
+  it('caches the parsed query object', async () => {
+    const { request: client } = app(handlers);
+    const result = await client.get('/url?id=123');
+
+    expect(result.body.sameQueryInstance).toBe(true);
+  });
+
   it('collects repeated query parameters into arrays', async () => {
     const { request: client } = app(handlers);
     const result = await client.get('/url?tag=node&tag=typescript&tag=web&empty=');
@@ -387,6 +438,26 @@ describe('error handling', () => {
     expect(result.status).toBe(200);
     expect(result.text).toBe('partial');
     expect(consoleError).toHaveBeenCalledOnce();
+  });
+
+  it('ends an open response when headers were already sent', async () => {
+    const { request: client } = app(handlers);
+    const result = await client.get('/after-headers-open');
+
+    expect(result.status).toBe(202);
+    expect(result.text).toBe('');
+    expect(consoleError).toHaveBeenCalledOnce();
+  });
+
+  it('wraps non-Error throws in an Error', async () => {
+    const { request: client } = app(handlers);
+    const result = await client.get('/throw-string');
+
+    expect(result.status).toBe(500);
+    expect(result.text).toBe(STATUS_CODES[500]);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'plain failure' }),
+    );
   });
 
   it('does not crash when the error handler throws', async () => {

@@ -19,6 +19,9 @@ middlewares, template engines, or hidden abstractions.
 - TypeScript-first, with bundled type declarations
 - Async/await friendly handlers
 - Static, dynamic (`:param`), optional (`:param?`), and wildcard (`*rest`) routes
+- Fast static-route lookup and static-prefix grouping for dynamic routes
+- 100% test coverage, including 100% branch coverage
+- Minified ESM and CommonJS builds from [tsdown](https://tsdown.dev)
 - Works with both ESM `import` and CommonJS `require`
 - Node.js 18+, tested on Node 18, 20, 22, 24, and 26 (Node 26 is the default)
 
@@ -169,6 +172,38 @@ function errorHandler(req, res, url, error) {
 
 Routes are matched in insertion order. URI-encoded path segments and parameters are decoded.
 
+## Performance
+
+The router uses a direct lookup for exact static paths and groups dynamic routes by static prefix.
+Query strings are parsed lazily and cached on first access.
+
+Run the benchmark suite with:
+
+```sh
+npm run bench
+```
+
+Representative Node.js 26 results (higher is better):
+
+| Benchmark | Before optimization | Current |
+| --- | ---: | ---: |
+| Static route among 100 routes | 98,397 ops/s | 851,103 ops/s |
+| Dynamic route among 100 routes | 83,239 ops/s | 319,848 ops/s |
+| Optional parameter | 114,852 ops/s | 399,922 ops/s |
+| Optional parameter omitted | 161,154 ops/s | 743,033 ops/s |
+| Wildcard route | 119,841 ops/s | 187,452 ops/s |
+| No matching route | 169,191 ops/s | 449,939 ops/s |
+| Static request dispatch | 90,213 ops/s | 117,176 ops/s |
+| Dynamic request dispatch with query | 52,045 ops/s | 57,118 ops/s |
+
+Benchmarks are host-dependent. The committed suite in `benchmark/` is the source of truth.
+
+## Bundle size
+
+The published package contains minified ESM and CommonJS builds plus declarations, with no source
+maps. The gzipped JavaScript entry points are under 2 KB each, and `npm run check:size` enforces the
+budgets in CI.
+
 ## Migrating from 1.x
 
 Version 2 is a modernized major release:
@@ -193,10 +228,12 @@ npm install
 npm run check         # lint and format check (Biome)
 npm run typecheck     # TypeScript, no emit
 npm test              # Vitest
-npm run test:coverage # Vitest with coverage thresholds
-npm run build         # ESM + CJS + declarations (tsup)
+npm run test:coverage # Vitest with 100% coverage thresholds
+npm run build         # minified ESM + CJS + declarations (tsdown)
 npm run test:package  # smoke-test the built ESM and CommonJS entry points
 npm run check:package # validate package exports/types (publint + attw)
+npm run check:size    # enforce gzipped bundle size budgets
+npm run bench         # run the router and request dispatch benchmarks
 ```
 
 Releases are automated with [semantic-release](https://semantic-release.gitbook.io/). Commits must
