@@ -261,9 +261,10 @@ format. The commit analyzer uses the `conventionalcommits` preset, so both `feat
 The repository merge settings use the pull request title as the merge subject. This keeps automated
 releases working when a PR is merged or squashed from the GitHub UI.
 
-Pushing to `main` (or `master`) runs CI first. When the full Node 18-26 matrix and package checks
-pass, the Release workflow starts, publishes to npm with provenance, writes `CHANGELOG.md`, and
-creates a GitHub release. The publish job installs dependencies without lifecycle scripts.
+Pull requests run the reusable Test workflow through CI. Pushing to `main` (or `master`) runs the
+same Test workflow inside the Release workflow; only after the Node 18-26 matrix and package checks
+pass does semantic-release publish to npm with provenance, write `CHANGELOG.md`, and create a GitHub
+release. The publish job installs dependencies without lifecycle scripts.
 
 Publishing uses npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) with OIDC, so no
 long-lived `NPM_TOKEN` is stored. The workflow requests `id-token: write`, and the trusted publisher

@@ -1,54 +1,51 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main, master]
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write
-
 concurrency:
-  group: release-${{ github.event.workflow_run.head_branch }}
+  group: release
   cancel-in-progress: false
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
   release:
-    name: Semantic release
+    needs: test
     runs-on: ubuntu-latest
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Use Node.js 24
+      - name: Use Node.js 26
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
-
-      # CI already passed the full Node 18-26 matrix and package checks.
-      # Install without lifecycle scripts so only semantic-release and its
-      # explicitly configured plugins run with publish permissions.
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
 
       # Authentication uses npm trusted publishing (OIDC): no NPM_TOKEN is
       # configured or read. The `id-token: write` permission above and the
       # trusted publisher entry for this repository/workflow are required.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Publish with semantic-release
-        run: npm run release
+        run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
