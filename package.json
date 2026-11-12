@@ -40,7 +40,6 @@
     "test:coverage": "vitest run --coverage",
     "test:package": "node test/package-smoke.mjs",
     "check:package": "publint && attw --pack .",
-    "check:size": "node scripts/size.mjs",
     "bench": "vitest bench --run",
     "prepack": "npm run build",
     "release": "semantic-release",

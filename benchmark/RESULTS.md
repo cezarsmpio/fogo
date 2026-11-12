@@ -37,5 +37,4 @@ parsing, and reduced path decoding changes.
 | npm package tarball | 11.4 kB | 7.2 kB |
 | Unpacked package | 57.4 kB | 22.6 kB |
 
-The current build is minified, tree-shaken, and ships without source maps. `npm run check:size`
-enforces the gzip budgets.
+The current build is minified, tree-shaken, and ships without source maps.

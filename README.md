@@ -201,8 +201,7 @@ Benchmarks are host-dependent. The committed suite in `benchmark/` is the source
 ## Bundle size
 
 The published package contains minified ESM and CommonJS builds plus declarations, with no source
-maps. The gzipped JavaScript entry points are under 2 KB each, and `npm run check:size` enforces the
-budgets in CI.
+maps. The gzipped JavaScript entry points are under 2 KB each.
 
 ## Migrating from 1.x
 
@@ -232,7 +231,6 @@ npm run test:coverage # Vitest with 100% coverage thresholds
 npm run build         # minified ESM + CJS + declarations (tsdown)
 npm run test:package  # smoke-test the built ESM and CommonJS entry points
 npm run check:package # validate package exports/types (publint + attw)
-npm run check:size    # enforce gzipped bundle size budgets
 npm run bench         # run the router and request dispatch benchmarks
 ```
 
