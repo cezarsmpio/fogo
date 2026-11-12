@@ -14,8 +14,34 @@ describe('compilePath', () => {
     expect(() => compilePath('/files/*path/edit')).toThrow(/Wildcard must be the last/);
   });
 
+  it('rejects empty segments and ambiguous separators', () => {
+    expect(() => compilePath('//')).toThrow(/Invalid route path/);
+    expect(() => compilePath('/a//b')).toThrow(/Invalid route path/);
+    expect(() => compilePath('/a//')).toThrow(/Invalid route path/);
+    expect(() => compilePath('/a\\b')).toThrow(/Invalid route path/);
+    expect(() => compilePath('/a#b')).toThrow(/Invalid route path/);
+  });
+
+  it('rejects unsupported parameter and wildcard syntax', () => {
+    expect(() => compilePath('/users/:id([0-9]+)')).toThrow(/Unsupported route syntax/);
+    expect(() => compilePath('/files/:path*')).toThrow(/Unsupported route syntax/);
+    expect(() => compilePath('/files/*path*')).toThrow(/Unsupported route syntax/);
+  });
+
+  it('normalizes a single trailing slash', () => {
+    const route = compilePath('/users/');
+
+    expect(route.path).toBe('/users/');
+    expect(route.key).toBe('/users');
+  });
+
   it('keeps the original path', () => {
     expect(compilePath('/users/:id').path).toBe('/users/:id');
+  });
+
+  it('treats routes as case-sensitive', () => {
+    expect(compilePath('/Users/:id').key).toBe('/Users/:id');
+    expect(compilePath('/Users/:id').key).not.toBe(compilePath('/users/:id').key);
   });
 });
 
@@ -88,11 +114,32 @@ describe('Router', () => {
     expect(router.find('/files')?.params).toEqual({ path: '' });
   });
 
-  it('supports a default wildcard name', () => {
+  it('supports the legacy unnamed wildcard parameter', () => {
     const router = new Router();
     router.add('/assets/*');
 
-    expect(router.find('/assets/logo.svg')?.params).toEqual({ wildcard: 'logo.svg' });
+    expect(router.find('/assets/logo.svg')?.params).toEqual({ '0': 'logo.svg' });
+  });
+
+  it('keeps encoded slashes inside a single path segment', () => {
+    const router = new Router();
+    router.add('/a/b');
+
+    expect(router.find('/a%2Fb')).toBeNull();
+
+    const encodedRouter = new Router();
+    encodedRouter.add('/a%2Fb');
+
+    expect(encodedRouter.find('/a/b')).toBeNull();
+    expect(encodedRouter.find('/a%2Fb')?.route.path).toBe('/a%2Fb');
+  });
+
+  it('is case-sensitive', () => {
+    const router = new Router();
+    router.add('/Users/:id');
+
+    expect(router.find('/users/42')).toBeNull();
+    expect(router.find('/Users/42')?.params).toEqual({ id: '42' });
   });
 
   it('normalizes a path that consists only of slashes', () => {
@@ -127,12 +174,22 @@ describe('Router', () => {
     expect(router.find('/users/42')?.params).toEqual({ id: '42' });
   });
 
-  it('keeps the first static route when a path is registered twice', () => {
+  it('rejects duplicate routes after normalization', () => {
     const router = new Router();
-    const firstRoute = router.add('/duplicate');
     router.add('/duplicate');
 
-    expect(router.find('/duplicate')?.route).toBe(firstRoute);
+    expect(() => router.add('/duplicate')).toThrow(/Duplicate route path/);
+    expect(() => router.add('/duplicate/')).toThrow(/Duplicate route path/);
+  });
+
+  it('rejects invalid pathnames passed to find', () => {
+    const router = new Router();
+    router.add('/a');
+
+    expect(router.find('//a')).toBeNull();
+    expect(router.find('/a//b')).toBeNull();
+    expect(router.find('/a\\b')).toBeNull();
+    expect(router.find('/a#b')).toBeNull();
   });
 
   it('falls back to ordered matching when a dynamic route comes first', () => {

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { createServer as createServerEsm, NotFoundError } from '../dist/index.js';
+import { createServer as createServerEsm, NotFoundError } from 'fogo';
 
 const require = createRequire(import.meta.url);
-const cjs = require('../dist/index.cjs');
+const cjs = require('fogo');
 
 assert.equal(typeof createServerEsm, 'function', 'ESM build must export createServer');
 assert.equal(typeof cjs.createServer, 'function', 'CommonJS build must export createServer');

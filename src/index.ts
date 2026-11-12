@@ -27,10 +27,22 @@ export type {
 
 const BASE_URL = 'http://localhost';
 const DEFAULT_PATH = '/';
+const BAD_REQUEST_STATUS = 400;
 const NOT_FOUND_STATUS = 404;
-const NOT_FOUND_MESSAGE = 'Not Found';
 const SERVER_ERROR_STATUS = 500;
+const BAD_REQUEST_MESSAGE = 'Bad Request';
+const NOT_FOUND_MESSAGE = 'Not Found';
 const SERVER_ERROR_MESSAGE = 'Internal Server Error';
+
+/**
+ * Internal signal used to return a 400 without calling application handlers.
+ */
+class BadRequestError extends Error {
+  constructor() {
+    super(BAD_REQUEST_MESSAGE);
+    this.name = 'BadRequestError';
+  }
+}
 
 /**
  * Internal signal used to distinguish "route not found" from application
@@ -43,6 +55,47 @@ export class NotFoundError extends Error {
     super(message);
     this.name = 'NotFoundError';
   }
+}
+
+function decodeRequestSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    throw new BadRequestError();
+  }
+}
+
+function normalizeRequestPath(path: string): string {
+  if (path === DEFAULT_PATH) return DEFAULT_PATH;
+
+  if (path === '' || path.includes('//') || path.includes('\\') || path.includes('#')) {
+    throw new BadRequestError();
+  }
+
+  const normalized = path.endsWith(DEFAULT_PATH) ? path.slice(0, -1) : path;
+
+  for (const segment of normalized.split(DEFAULT_PATH).slice(1)) {
+    const decoded = decodeRequestSegment(segment);
+
+    if (decoded.includes('\0') || decoded.includes('\\')) {
+      throw new BadRequestError();
+    }
+
+    if (decoded.split(DEFAULT_PATH).some((part) => part === '.' || part === '..')) {
+      throw new BadRequestError();
+    }
+  }
+
+  return normalized;
+}
+
+function parseRequestPath(target: string): string {
+  if (!target.startsWith(DEFAULT_PATH)) {
+    throw new BadRequestError();
+  }
+
+  const queryIndex = target.indexOf('?');
+  return normalizeRequestPath(queryIndex === -1 ? target : target.slice(0, queryIndex));
 }
 
 function parseQuery(searchParams: URLSearchParams): Query {
@@ -63,16 +116,11 @@ function parseQuery(searchParams: URLSearchParams): Query {
   return query;
 }
 
-function parseRequestUrl(req: IncomingMessage): ParsedUrl {
+function parseRequest(req: IncomingMessage): { parsedUrl: ParsedUrl; pathname: string } {
   const target = req.url ?? DEFAULT_PATH;
-  let parsed: URL;
-
-  try {
-    // A fixed base keeps parsing deterministic and avoids trusting Host.
-    parsed = new URL(target, BASE_URL);
-  } catch {
-    parsed = new URL(DEFAULT_PATH, BASE_URL);
-  }
+  const pathname = parseRequestPath(target);
+  // A fixed base keeps parsing deterministic and avoids trusting Host.
+  const parsed = new URL(target, BASE_URL);
 
   let query: Query | undefined;
 
@@ -85,7 +133,7 @@ function parseRequestUrl(req: IncomingMessage): ParsedUrl {
     },
   });
 
-  return parsed as ParsedUrl;
+  return { parsedUrl: parsed as ParsedUrl, pathname };
 }
 
 function sendStatus(res: ServerResponse, statusCode: number, body: string): void {
@@ -156,11 +204,20 @@ export function createServer(
   }
 
   return createHttpServer(async (req, res) => {
-    const parsedUrl = parseRequestUrl(req);
+    let parsedUrl: ParsedUrl;
+    let pathname: string;
+
+    try {
+      ({ parsedUrl, pathname } = parseRequest(req));
+    } catch {
+      sendStatus(res, BAD_REQUEST_STATUS, BAD_REQUEST_MESSAGE);
+      return;
+    }
+
     const method = (req.method ?? 'GET').toLowerCase();
 
     try {
-      const match = router.find(parsedUrl.pathname);
+      const match = router.find(pathname);
 
       if (!match) {
         throw new NotFoundError();

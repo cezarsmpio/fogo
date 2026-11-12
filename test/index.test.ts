@@ -16,6 +16,36 @@ function app(
   return { server, request: request(server) };
 }
 
+async function rawRequest(server: Server, target: string): Promise<string> {
+  if (!server.listening) {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  }
+
+  const address = server.address();
+
+  if (!address || typeof address === 'string') {
+    throw new Error('Expected the test server to have a TCP address');
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const socket = connect(address.port, '127.0.0.1', () => {
+      socket.write(`GET ${target} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n`);
+    });
+
+    let data = '';
+
+    socket.setTimeout(2_000, () => {
+      socket.destroy();
+      reject(new Error('Raw request timed out'));
+    });
+    socket.on('data', (chunk) => {
+      data += chunk;
+    });
+    socket.on('end', () => resolve(data));
+    socket.on('error', reject);
+  });
+}
+
 const handlers: Handler = {
   '/': (_req, res) => {
     res.writeHead(200);
@@ -352,7 +382,7 @@ describe('request URL', () => {
     });
   });
 
-  it('falls back to the root URL when the request target cannot be parsed', async () => {
+  it('returns 400 for a malformed request target', async () => {
     const { server } = app({
       '/': (_req, res) => {
         res.writeHead(200);
@@ -360,35 +390,56 @@ describe('request URL', () => {
       },
     });
 
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
+    const response = await rawRequest(server, 'http://[invalid/');
 
-    if (!address || typeof address === 'string') {
-      throw new Error('Expected the test server to have a TCP address');
-    }
+    expect(response).toContain('400 Bad Request');
+    expect(response).toContain('Bad Request');
+  });
 
-    const response = await new Promise<string>((resolve, reject) => {
-      const socket = connect(address.port, '127.0.0.1', () => {
-        socket.write(
-          'GET http://[invalid/ HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n',
-        );
-      });
-
-      let data = '';
-
-      socket.setTimeout(2_000, () => {
-        socket.destroy();
-        reject(new Error('Raw request timed out'));
-      });
-      socket.on('data', (chunk) => {
-        data += chunk;
-      });
-      socket.on('end', () => resolve(data));
-      socket.on('error', reject);
+  it.each([
+    '/public/../admin',
+    '/public/%2e%2e/admin',
+    '//evil.com/admin',
+    '/\\evil.com/admin',
+    '/a//b',
+    '/a/%2e%2e',
+    '/a/%00',
+    '/a/%E0%A4%A',
+  ])('returns 400 for a non-normalized request target: %s', async (target) => {
+    const { server } = app({
+      '/': (_req, res) => {
+        res.writeHead(200);
+        res.end('root');
+      },
+      '/admin': (_req, res) => {
+        res.writeHead(200);
+        res.end('admin');
+      },
     });
 
-    expect(response).toContain('200 OK');
-    expect(response).toContain('root');
+    const response = await rawRequest(server, target);
+
+    expect(response).toContain('400 Bad Request');
+    expect(response).not.toContain('admin');
+  });
+
+  it('routes encoded slashes inside a segment without path collisions', async () => {
+    const { request: client } = app({
+      '/a/b': (_req, res) => {
+        res.writeHead(200);
+        res.end('two segments');
+      },
+      '/a%2Fb': (_req, res) => {
+        res.writeHead(200);
+        res.end('one segment');
+      },
+    });
+
+    const encoded = await client.get('/a%2Fb');
+    const literal = await client.get('/a/b');
+
+    expect(encoded.text).toBe('one segment');
+    expect(literal.text).toBe('two segments');
   });
 });
 

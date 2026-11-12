@@ -8,6 +8,7 @@ type PatternSegment =
 
 export interface CompiledRoute {
   readonly path: string;
+  readonly key: string;
   readonly segments: readonly PatternSegment[];
   readonly staticPrefix: string;
   readonly staticPath: string | null;
@@ -41,13 +42,21 @@ function decodeSegment(segment: string): string {
   }
 }
 
+function normalizePatternPath(path: string): string {
+  if (path === ROOT_PATH) return ROOT_PATH;
+
+  if (path.includes('//') || path.includes('\\') || path.includes('#')) {
+    throw new TypeError(`Invalid route path: ${path}`);
+  }
+
+  return path.endsWith(ROOT_PATH) ? path.slice(0, -1) : path;
+}
+
 function splitPath(pathname: string): string[] {
   if (pathname === ROOT_PATH || pathname === '') return [];
 
-  const normalized = pathname.replace(/\/+$/, '');
-  if (normalized === '') return [];
-
-  return normalized.split(ROOT_PATH).slice(1).map(decodeSegment);
+  const normalized = pathname.endsWith(ROOT_PATH) ? pathname.slice(0, -1) : pathname;
+  return normalized.split(ROOT_PATH).slice(1);
 }
 
 function toPathKey(segments: readonly string[]): string {
@@ -77,6 +86,7 @@ function toStaticPrefix(segments: readonly PatternSegment[]): string {
  * - `/users/:id` - required parameter
  * - `/users/:id?` - optional parameter
  * - `/files/*path` - wildcard matching the rest of the path
+ * - `/files/*` - wildcard exposed as parameter `0`
  */
 export function compilePath(path: string): CompiledRoute {
   if (typeof path !== 'string' || path.length === 0) {
@@ -87,7 +97,8 @@ export function compilePath(path: string): CompiledRoute {
     throw new TypeError(`Route path must start with "/": ${path}`);
   }
 
-  const rawSegments = path === ROOT_PATH ? [] : path.replace(/\/+$/, '').split(ROOT_PATH).slice(1);
+  const normalizedPath = normalizePatternPath(path);
+  const rawSegments = normalizedPath === ROOT_PATH ? [] : normalizedPath.split(ROOT_PATH).slice(1);
 
   const segments: PatternSegment[] = rawSegments.map((segment) => {
     const param = PARAM_PATTERN.exec(segment);
@@ -103,8 +114,12 @@ export function compilePath(path: string): CompiledRoute {
     if (wildcard) {
       return {
         type: 'wildcard',
-        name: wildcard[1] || 'wildcard',
+        name: wildcard[1] || '0',
       };
+    }
+
+    if (segment.startsWith(':') || segment.startsWith('*')) {
+      throw new TypeError(`Unsupported route syntax in "${path}": ${segment}`);
     }
 
     return { type: 'static', value: decodeSegment(segment) };
@@ -115,15 +130,12 @@ export function compilePath(path: string): CompiledRoute {
     throw new TypeError(`Wildcard must be the last segment: ${path}`);
   }
 
-  const staticPath = segments.every(isStaticSegment)
-    ? toPathKey(segments.map((segment) => segment.value))
-    : null;
-
   return {
     path,
+    key: normalizedPath,
     segments,
     staticPrefix: toStaticPrefix(segments),
-    staticPath,
+    staticPath: segments.every(isStaticSegment) ? normalizedPath : null,
   };
 }
 
@@ -172,18 +184,27 @@ function matchSegments(
  * A small, dependency-free router backed by compiled route patterns.
  *
  * Exact static routes use a direct lookup. Dynamic routes are grouped by
- * their static prefix so unrelated routes are skipped.
+ * their static prefix so unrelated routes are skipped. The static fast path
+ * is only used when no earlier dynamic route could match, preserving
+ * insertion-order matching.
  */
 export class Router {
   readonly #routes: IndexedRoute[] = [];
   readonly #staticRoutes = new Map<string, IndexedRoute>();
   readonly #routesByStaticPrefix = new Map<string, IndexedRoute[]>();
+  readonly #routeKeys = new Set<string>();
   #firstNonStaticIndex = -1;
 
   add(path: string): CompiledRoute {
     const route = compilePath(path);
-    const indexedRoute = { route, index: this.#routes.length };
 
+    if (this.#routeKeys.has(route.key)) {
+      throw new TypeError(`Duplicate route path: ${path}`);
+    }
+
+    this.#routeKeys.add(route.key);
+
+    const indexedRoute = { route, index: this.#routes.length };
     this.#routes.push(indexedRoute);
 
     const bucket = this.#routesByStaticPrefix.get(route.staticPrefix);
@@ -205,12 +226,16 @@ export class Router {
   }
 
   find(pathname: string): RouteMatch | null {
-    const pathSegments = splitPath(pathname);
-    const staticMatch = this.#staticRoutes.get(toPathKey(pathSegments));
+    if (pathname.includes('//') || pathname.includes('\\') || pathname.includes('#')) return null;
+
+    const rawSegments = splitPath(pathname);
+    const staticMatch = this.#staticRoutes.get(toPathKey(rawSegments));
 
     if (staticMatch && this.#isFirstPossibleMatch(staticMatch)) {
       return { route: staticMatch.route, params: {} };
     }
+
+    const pathSegments = rawSegments.map(decodeSegment);
 
     for (const { route } of this.#candidatesFor(pathSegments)) {
       const params = matchSegments(route.segments, pathSegments, 0, 0, {});

@@ -170,7 +170,14 @@ function errorHandler(req, res, url, error) {
 | `/users/:id/:name?` | `/users/42`, `/users/42/cezar` | `{ id: '42', name?: 'cezar' }` |
 | `/files/*path` | `/files/a/b.txt` | `{ path: 'a/b.txt' }` |
 
-Routes are matched in insertion order. URI-encoded path segments and parameters are decoded.
+Routes are matched in insertion order and are case-sensitive. URI-encoded path segments and
+parameters are decoded. An encoded slash (`%2F`) stays inside its segment instead of becoming a path
+separator. Unsupported parameter syntax, such as `:id(\\d+)` or `:path*`, throws a `TypeError` when
+the server is created. An unnamed wildcard (`*`) exposes its value as parameter `0`.
+
+Incoming request targets are validated before routing. Dot segments, backslashes, repeated slashes,
+encoded traversal, malformed percent escapes, and non-origin-form targets receive `400 Bad Request`
+instead of being normalized into a different route.
 
 ## Performance
 
@@ -187,21 +194,21 @@ Representative Node.js 26 results (higher is better):
 
 | Benchmark | Before optimization | Current |
 | --- | ---: | ---: |
-| Static route among 100 routes | 98,397 ops/s | 851,103 ops/s |
-| Dynamic route among 100 routes | 83,239 ops/s | 319,848 ops/s |
-| Optional parameter | 114,852 ops/s | 399,922 ops/s |
-| Optional parameter omitted | 161,154 ops/s | 743,033 ops/s |
-| Wildcard route | 119,841 ops/s | 187,452 ops/s |
-| No matching route | 169,191 ops/s | 449,939 ops/s |
-| Static request dispatch | 90,213 ops/s | 117,176 ops/s |
-| Dynamic request dispatch with query | 52,045 ops/s | 57,118 ops/s |
+| Static route among 100 routes | 98,397 ops/s | 642,596 ops/s |
+| Dynamic route among 100 routes | 83,239 ops/s | 203,256 ops/s |
+| Optional parameter | 114,852 ops/s | 444,757 ops/s |
+| Optional parameter omitted | 161,154 ops/s | 873,090 ops/s |
+| Wildcard route | 119,841 ops/s | 354,918 ops/s |
+| No matching route | 169,191 ops/s | 692,135 ops/s |
+| Static request dispatch | 90,213 ops/s | 148,940 ops/s |
+| Dynamic request dispatch with query | 52,045 ops/s | 107,139 ops/s |
 
 Benchmarks are host-dependent. The committed suite in `benchmark/` is the source of truth.
 
 ## Bundle size
 
 The published package contains minified ESM and CommonJS builds plus declarations, with no source
-maps. The gzipped JavaScript entry points are under 2 KB each.
+maps. The gzipped JavaScript entry points are about 2 KB each.
 
 ## Migrating from 1.x
 
@@ -211,8 +218,16 @@ Version 2 is a modernized major release:
 - Ships ESM and CommonJS builds with an `exports` map.
 - Uses the WHATWG `URL` API instead of the deprecated `url.parse`.
   `url.pathname`, `url.search`, and `url.query` still work; `url.query` keeps the old
-  `node:querystring` shape.
+  `node:querystring` shape and is now a cached, read-only getter.
+- `url.path` is no longer available. `url.href` and `url.host` now describe the absolute URL built
+  from the fixed `http://localhost` base rather than the raw request target.
 - Removed the `path-match` dependency; routing is built in.
+- Routes are case-sensitive. Regex parameters and `:name*` patterns are not supported and throw
+  instead of silently becoming static text.
+- An unnamed wildcard (`*`) keeps the legacy parameter key `0`.
+- Incoming targets with dot segments, backslashes, repeated slashes, encoded traversal, or malformed
+  escapes return `400 Bad Request` instead of being normalized into a different route.
+- Duplicate routes after trailing-slash normalization throw when the server is created.
 - `HEAD` requests fall back to the `GET` handler when no `head` handler exists.
 - Handlers always receive a params object, even for static routes.
 - Not-found detection uses a typed `NotFoundError` instead of matching an error message string.
@@ -241,8 +256,9 @@ follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
 - `feat: ...` publishes a minor
 - `feat!: ...` or a `BREAKING CHANGE:` footer publishes a major
 
-Pushing to `main` (or `master`) runs the Release workflow, which tests, builds, publishes to npm
-with provenance, writes `CHANGELOG.md`, and creates a GitHub release.
+Pushing to `main` (or `master`) runs CI first. When the full Node 18-26 matrix and package checks
+pass, the Release workflow starts, publishes to npm with provenance, writes `CHANGELOG.md`, and
+creates a GitHub release. The publish job installs dependencies without lifecycle scripts.
 
 Publishing uses npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) with OIDC, so no
 long-lived `NPM_TOKEN` is stored. The workflow requests `id-token: write`, and the trusted publisher
