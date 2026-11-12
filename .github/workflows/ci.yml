@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24, 26]
+        node: [18, 20, 22, 24, 26]
 
     steps:
       - name: Checkout
@@ -49,7 +49,9 @@ jobs:
       - name: Test package builds
         run: npm run test:package
 
+      # attw requires Node.js 20+, so package type validation runs on 20+.
       - name: Validate package exports and types
+        if: matrix.node != 18
         run: npm run check:package
 
       - name: Verify package contents

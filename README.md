@@ -20,7 +20,7 @@ middlewares, template engines, or hidden abstractions.
 - Async/await friendly handlers
 - Static, dynamic (`:param`), optional (`:param?`), and wildcard (`*rest`) routes
 - Works with both ESM `import` and CommonJS `require`
-- Node.js 22+ (current LTS lines)
+- Node.js 18+, tested on Node 18, 20, 22, 24, and 26 (Node 26 is the default)
 
 ## Install
 
@@ -173,7 +173,7 @@ Routes are matched in insertion order. URI-encoded path segments and parameters 
 
 Version 2 is a modernized major release:
 
-- Requires Node.js 22 or newer.
+- Requires Node.js 18 or newer.
 - Ships ESM and CommonJS builds with an `exports` map.
 - Uses the WHATWG `URL` API instead of the deprecated `url.parse`.
   `url.pathname`, `url.search`, and `url.query` still work; `url.query` keeps the old
@@ -184,6 +184,9 @@ Version 2 is a modernized major release:
 - Not-found detection uses a typed `NotFoundError` instead of matching an error message string.
 
 ## Development
+
+Node.js 26 is the default development version (see `.nvmrc`). The test suite also runs on Node 18,
+20, 22, 24, and 26 in CI.
 
 ```sh
 npm install
