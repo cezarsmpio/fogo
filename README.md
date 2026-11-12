@@ -249,12 +249,17 @@ npm run check:package # validate package exports/types (publint + attw)
 npm run bench         # run the router and request dispatch benchmarks
 ```
 
-Releases are automated with [semantic-release](https://semantic-release.gitbook.io/). Commits must
-follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/). Commits and
+pull request titles must follow the [Conventional Commits](https://www.conventionalcommits.org/)
+format. The commit analyzer uses the `conventionalcommits` preset, so both `feat!:` and a
+`BREAKING CHANGE:` footer are recognized:
 
 - `fix: ...` publishes a patch
 - `feat: ...` publishes a minor
 - `feat!: ...` or a `BREAKING CHANGE:` footer publishes a major
+
+The repository merge settings use the pull request title as the merge subject. This keeps automated
+releases working when a PR is merged or squashed from the GitHub UI.
 
 Pushing to `main` (or `master`) runs CI first. When the full Node 18-26 matrix and package checks
 pass, the Release workflow starts, publishes to npm with provenance, writes `CHANGELOG.md`, and
